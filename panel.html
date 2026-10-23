@@ -23,6 +23,7 @@
     input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font:16px Arial}
     button{border:0;background:var(--blue);color:#fff;padding:11px 18px;border-radius:999px;font-weight:700;cursor:pointer}
     button.secondary{background:#fff;color:var(--ink);border:1px solid var(--line)}
+    button:disabled{opacity:.55;cursor:wait}
     .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
     .hidden{display:none}
     .person{display:flex;justify-content:space-between;gap:14px;align-items:center}
@@ -33,6 +34,7 @@
     .code{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.05em}
     .title{font-weight:700;margin-top:3px}
     .text{margin-top:5px;white-space:pre-wrap;line-height:1.45}
+    .analysis{margin-top:18px;padding:20px;border-radius:14px;background:#f3f0e9;border:1px solid var(--line);white-space:pre-wrap;line-height:1.55}
     .stage{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;color:white;margin-left:6px}
     .Norte{background:var(--north)} .Autoría{background:var(--author)}
     .Tierra{background:var(--earth)} .Tribu{background:var(--tribe)}
@@ -42,7 +44,7 @@
 <main>
   <div class="eyebrow">Ser Protagonista</div>
   <h1>Panel privado</h1>
-  <p class="lead">Historial de evaluaciones por persona.</p>
+  <p class="lead">Historial de evaluaciones y análisis de progreso por persona.</p>
 
   <div id="systemStatus" class="status">Iniciando sistema…</div>
 
@@ -72,6 +74,7 @@
   const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
   const $ = id => document.getElementById(id);
+  let peopleCache = [];
 
   function escapeHtml(s){
     return String(s ?? "")
@@ -140,19 +143,25 @@
       });
     }
 
-    const people=[...peopleMap.values()].filter(p=>p.assessments.length>0);
+    peopleCache=[...peopleMap.values()].filter(p=>p.assessments.length>0);
 
-    $("panelStatus").innerHTML=`<div class="status">${people.length} persona(s) con evaluaciones.</div>`;
+    $("panelStatus").innerHTML=`<div class="status">${peopleCache.length} persona(s) con evaluaciones.</div>`;
 
-    $("people").innerHTML = people.map((p,idx)=>`
+    $("people").innerHTML = peopleCache.map((p,idx)=>`
       <div class="card">
         <div class="person">
           <div>
             <div class="email">${escapeHtml(p.email||p.user_id)}</div>
             <div class="meta">${p.assessments.length} evaluación(es)</div>
           </div>
-          <button class="secondary" onclick="togglePerson(${idx})">Ver historial</button>
+          <div class="actions">
+            <button onclick="analyzePerson(${idx})" id="analyze-${idx}">Analizar progreso</button>
+            <button class="secondary" onclick="togglePerson(${idx})">Ver historial</button>
+          </div>
         </div>
+
+        <div id="analysis-${idx}" class="hidden"></div>
+
         <div id="person-${idx}" class="hidden">
           ${p.assessments.map(a=>`
             <div class="assessment">
@@ -177,6 +186,31 @@
 
   window.togglePerson = function(i){
     $("person-"+i).classList.toggle("hidden");
+  };
+
+  window.analyzePerson = async function(i){
+    const person = peopleCache[i];
+    const box = $("analysis-"+i);
+    const button = $("analyze-"+i);
+
+    box.className = "analysis";
+    box.textContent = "Analizando el progreso…";
+    button.disabled = true;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-progress", {
+        body: { user_id: person.user_id }
+      });
+
+      if(error) throw error;
+      if(data?.error) throw new Error(data.error);
+
+      box.textContent = data?.analysis || "No se recibió un análisis.";
+    } catch (err) {
+      box.textContent = "Error: " + (err?.message || String(err));
+    } finally {
+      button.disabled = false;
+    }
   };
 
   $("loginBtn").onclick = async () => {
