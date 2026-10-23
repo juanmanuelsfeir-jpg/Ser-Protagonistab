@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Brújula | Ser Protagonista</title>
+  <style>
+    :root{
+      --bg:#faf8f3; --ink:#202326; --muted:#6e706d; --line:#d8d7d2;
+      --blue:#5a6f90; --north:#657896; --author:#a7624a;
+      --earth:#9a814f; --tribe:#705e78; --paper:#fff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+    main{max-width:920px;margin:auto;padding:42px 24px 80px}
+    h1,h2,h3{font-family:Georgia,"Times New Roman",serif}
+    h1{font-size:52px;margin:0 0 12px}
+    h2{font-size:34px;margin:32px 0 14px}
+    .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);font-weight:700}
+    .lead{font:20px/1.45 Georgia,serif;color:#333;max-width:720px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;margin:16px 0}
+    .question-code{font-size:12px;letter-spacing:.06em;color:var(--muted);font-weight:700}
+    .question-title{font:21px Georgia,serif;margin:5px 0 8px}
+    .help{font-size:14px;line-height:1.45;color:var(--muted)}
+    textarea,input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font:16px/1.4 Arial;background:#fff}
+    textarea{min-height:130px;resize:vertical}
+    button{border:0;background:var(--blue);color:#fff;padding:13px 20px;border-radius:999px;font-weight:700;cursor:pointer}
+    button.secondary{background:#fff;color:var(--ink);border:1px solid var(--line)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+    .stages{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}
+    .stage{padding:8px 13px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}
+    .stage.active{color:#fff;border-color:transparent}
+    .norte.active{background:var(--north)}
+    .autoria.active{background:var(--author)}
+    .tierra.active{background:var(--earth)}
+    .tribu.active{background:var(--tribe)}
+    .status{margin:16px 0;padding:12px 14px;border-radius:10px;background:#eef1f5}
+    .hidden{display:none}
+    .small{font-size:13px;color:var(--muted)}
+    .divider{height:1px;background:var(--line);margin:28px 0}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Programa Ser Protagonista</div>
+  <h1>Tu Brújula</h1>
+  <p class="lead">Un registro para comprender tu proceso y poder observar cómo cambia con el tiempo.</p>
+
+  <section id="loginBox" class="card">
+    <h3>Ingresá con tu email</h3>
+    <p class="small">Te vamos a enviar un enlace para que tus respuestas queden asociadas siempre a vos.</p>
+    <input id="email" type="email" placeholder="tu@email.com" />
+    <div class="actions">
+      <button id="sendMagicLink">Recibir enlace de acceso</button>
+    </div>
+    <div id="loginStatus"></div>
+  </section>
+
+  <section id="formBox" class="hidden">
+    <div class="stages" id="stages"></div>
+    <div id="questions"></div>
+    <div class="actions">
+      <button id="prevBtn" class="secondary">Anterior</button>
+      <button id="nextBtn">Siguiente etapa</button>
+      <button id="saveBtn" class="hidden">Guardar evaluación completa</button>
+    </div>
+    <div id="saveStatus"></div>
+  </section>
+</main>
+
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+  // 1) PEGÁ ACÁ TUS DATOS DE SUPABASE
+  const SUPABASE_URL = "https://wugmztghbdadhthlogvh.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_fOQYHltmeh5l1f0aka9pFA_X3Qc1aRc";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+  const stages = ["Norte","Autoría","Tierra","Tribu"];
+  const questions = [
+    {code:"N1.1",stage:"Norte",title:"Dolor / diagnóstico",prompt:"¿Qué dolor, molestia o diagnóstico te trae hasta acá? Escribilo con tus propias palabras."},
+    {code:"N1.2",stage:"Norte",title:"Síntomas",prompt:"¿Cuáles son todos los síntomas que sentís con tu problemática y qué otros síntomas podés contar de vos, actuales y pasados?"},
+    {code:"N1.3",stage:"Norte",title:"Desde cuándo te pasa",prompt:"¿Cuándo empezó? ¿Fue gradual o repentino? ¿Qué recordás de ese momento?"},
+    {code:"N1.4",stage:"Norte",title:"Cómo vivías tu vida en ese entonces",prompt:"¿Cómo era tu día a día cuando esto empezó?"},
+    {code:"N1.5",stage:"Norte",title:"A qué le atribuís el problema",prompt:"¿Qué creés hoy que lo causó o que lo mantiene?"},
+    {code:"N1.6",stage:"Norte",title:"Qué buscaste para estar mejor",prompt:"¿Qué consultas, estudios, tratamientos, ejercicios, cambios o estrategias probaste?"},
+    {code:"N1.7",stage:"Norte",title:"Qué resultados",prompt:"¿Qué mejoró? ¿Qué cambió poco? ¿Qué aprendiste?"},
+    {code:"N1.8",stage:"Norte",title:"Qué buscás en profundidad",prompt:"Más allá de que baje el síntoma, ¿qué querés recuperar en tu vida?"},
+    {code:"N1.9",stage:"Norte",title:"Qué sentirías si lo alcanzaras",prompt:"Expresá las emociones, sentimientos y sensaciones específicas, tomándote un tiempo antes de escribir."},
+
+    {code:"A2.1",stage:"Autoría",title:"Qué sabés de lo que te pasa",prompt:"¿Qué entendés hoy sobre lo que te pasa?"},
+    {code:"A2.2",stage:"Autoría",title:"Qué pensás",prompt:"¿Qué ideas, interpretaciones, miedos o certezas aparecen?"},
+    {code:"A2.3",stage:"Autoría",title:"Cómo te sentís con lo que te pasa",prompt:"¿Qué emociones y sensaciones aparecen?"},
+    {code:"A2.4",stage:"Autoría",title:"Algo más que hayas oído / investigado",prompt:"¿Qué te dijeron o investigaste que quedó dando vueltas?"},
+    {code:"A2.5",stage:"Autoría",title:"Qué funciones se traban",prompt:"¿Qué funciones o actividades sentís condicionadas?"},
+
+    {code:"T3.1A",stage:"Tierra",title:"Dibujo figura humana",prompt:"Describí lo que dibujaste sin corregirlo."},
+    {code:"T3.1B",stage:"Tierra",title:"Dibujo esqueleto",prompt:"Describí lo que dibujaste sin corregirlo."},
+    {code:"T3.2",stage:"Tierra",title:"Equilibrio de vida",prompt:"Escribí tus conclusiones sobre Amigos, Salud, Dinero, Amor, Familia, Profesión, Desarrollo personal y Ocio."},
+    {code:"T3.3L",stage:"Tierra",title:"Creencias limitantes",prompt:"Escribí todo lo que creas de vos que no te ayuda a estar mejor, aunque sea verdad."},
+    {code:"T3.3H",stage:"Tierra",title:"Creencias habilitantes",prompt:"Escribí creencias superadoras y útiles, sin engañarte, al servicio del propósito de tu mejoría."},
+    {code:"T3.4",stage:"Tierra",title:"Sentirte de pie",prompt:"Realizá la práctica y describí tus conclusiones."},
+    {code:"T3.5",stage:"Tierra",title:"Tumbado en el suelo",prompt:"Realizá la práctica y describí tus conclusiones."},
+    {code:"T3.6",stage:"Tierra",title:"Tumbado en postura",prompt:"Realizá la práctica y describí tus conclusiones."},
+    {code:"T3.7",stage:"Tierra",title:"Respiración",prompt:"Realizá la práctica y describí tus conclusiones."},
+    {code:"T3.8",stage:"Tierra",title:"Apoyos",prompt:"Realizá la práctica y describí tus conclusiones."},
+    {code:"T3.9",stage:"Tierra",title:"Conciencia corporal",prompt:"Mirá el video y escribí tus conclusiones."},
+    {code:"T3.10",stage:"Tierra",title:"Compensaciones",prompt:"Mirá el video y escribí tus conclusiones."},
+    {code:"T3.11",stage:"Tierra",title:"Contacto amable",prompt:"Mirá el video y escribí tus conclusiones."},
+    {code:"T3.12",stage:"Tierra",title:"Cadenas musculares",prompt:"Mirá el video y escribí tus conclusiones."},
+
+    {code:"TR4.1",stage:"Tribu",title:"Posturas globales emocionales",prompt:"Mirá el video y escribí tus conclusiones."},
+    {code:"TR4.2",stage:"Tribu",title:"Disciplina y comunicación",prompt:"Mirá el video y escribí tus conclusiones."},
+    {code:"TR4.3",stage:"Tribu",title:"Disciplina",prompt:"¿Qué práctica o decisión querés sostener en el tiempo?"},
+    {code:"TR4.4",stage:"Tribu",title:"Comunicación",prompt:"¿Qué necesitás expresar, pedir o conversar para acompañar tu proceso?"},
+    {code:"TR4.5",stage:"Tribu",title:"Propósito",prompt:"¿Para qué querés estar mejor? ¿Qué querés poder hacer, vivir o recuperar?"},
+    {code:"TR4.6",stage:"Tribu",title:"Gestión emocional",prompt:"¿Qué emoción querés aprender a reconocer y gestionar con más recursos?"}
+  ];
+
+  let currentStage = 0;
+  const answers = {};
+
+  const $ = (id)=>document.getElementById(id);
+
+  function renderStages(){
+    $("stages").innerHTML = stages.map((s,i)=>`
+      <button class="stage ${s.toLowerCase()} ${i===currentStage?"active":""}" data-stage="${i}">
+        ${i+1}. ${s}
+      </button>
+    `).join("");
+    document.querySelectorAll("[data-stage]").forEach(btn=>{
+      btn.onclick=()=>{currentStage=Number(btn.dataset.stage);render();}
+    });
+  }
+
+  function renderQuestions(){
+    const stage = stages[currentStage];
+    const visible = questions.filter(q=>q.stage===stage);
+    $("questions").innerHTML = `
+      <h2>${stage}</h2>
+      ${visible.map(q=>`
+        <div class="card">
+          <div class="question-code">${q.code}</div>
+          <div class="question-title">${q.title}</div>
+          <p class="help">${q.prompt}</p>
+          <textarea data-code="${q.code}" placeholder="Escribí acá…">${answers[q.code]||""}</textarea>
+        </div>
+      `).join("")}
+    `;
+    document.querySelectorAll("textarea[data-code]").forEach(t=>{
+      t.oninput=()=>{answers[t.dataset.code]=t.value;}
+    });
+  }
+
+  function render(){
+    renderStages();
+    renderQuestions();
+    $("prevBtn").style.display=currentStage===0?"none":"inline-block";
+    $("nextBtn").classList.toggle("hidden",currentStage===stages.length-1);
+    $("saveBtn").classList.toggle("hidden",currentStage!==stages.length-1);
+  }
+
+  $("prevBtn").onclick=()=>{if(currentStage>0){currentStage--;render();window.scrollTo({top:0,behavior:"smooth"});}};
+  $("nextBtn").onclick=()=>{if(currentStage<stages.length-1){currentStage++;render();window.scrollTo({top:0,behavior:"smooth"});}};
+
+  $("sendMagicLink").onclick=async()=>{
+    const email=$("email").value.trim();
+    if(!email){$("loginStatus").innerHTML='<div class="status">Ingresá tu email.</div>';return;}
+    const {error}=await supabase.auth.signInWithOtp({
+      email,
+      options:{ emailRedirectTo: window.location.href.split("#")[0] }
+    });
+    $("loginStatus").innerHTML=`<div class="status">${error ? error.message : "Te enviamos un enlace de acceso por email."}</div>`;
+  };
+
+  async function checkSession(){
+    const {data}=await supabase.auth.getUser();
+    if(data.user){
+      $("loginBox").classList.add("hidden");
+      $("formBox").classList.remove("hidden");
+      render();
+    }
+  }
+
+  $("saveBtn").onclick=async()=>{
+    $("saveStatus").innerHTML='<div class="status">Guardando evaluación…</div>';
+    const {data:userData}=await supabase.auth.getUser();
+    const user=userData.user;
+    if(!user){
+      $("saveStatus").innerHTML='<div class="status">Tu sesión venció. Volvé a ingresar.</div>';
+      return;
+    }
+
+    // Crea una evaluación nueva.
+    const {data:assessment,error:aerr}=await supabase
+      .from("assessments")
+      .insert({user_id:user.id,completed_at:new Date().toISOString()})
+      .select("id")
+      .single();
+
+    if(aerr){
+      $("saveStatus").innerHTML=`<div class="status">${aerr.message}</div>`;
+      return;
+    }
+
+    const rows=questions.map(q=>({
+      assessment_id:assessment.id,
+      user_id:user.id,
+      question_code:q.code,
+      stage:q.stage,
+      question_title:q.title,
+      answer_text:answers[q.code]||""
+    }));
+
+    const {error}=await supabase.from("answers").insert(rows);
+    $("saveStatus").innerHTML=`<div class="status">${error ? error.message : "Evaluación guardada correctamente."}</div>`;
+  };
+
+  checkSession();
+</script>
+</body>
+</html>
