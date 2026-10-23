@@ -72,6 +72,8 @@
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_fOQYHltmeh5l1f0aka9pFA_X3Qc1aRc";
   const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   const $ = id => document.getElementById(id);
+  
+  $("loginStatus").innerHTML = '<div class="status">Sistema conectado.</div>';
 
   $("loginBtn").onclick = async () => {
     const email = $("email").value.trim();
