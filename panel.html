@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Panel privado | Ser Protagonista</title>
+  <style>
+    :root{
+      --bg:#faf8f3; --ink:#202326; --muted:#6e706d; --line:#d8d7d2;
+      --blue:#5a6f90; --north:#657896; --author:#a7624a;
+      --earth:#9a814f; --tribe:#705e78; --soft:#eef1f5;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+    main{max-width:1050px;margin:auto;padding:40px 24px 80px}
+    h1,h2,h3{font-family:Georgia,"Times New Roman",serif}
+    h1{font-size:46px;margin:0 0 10px}
+    h3{font-size:21px;margin:0 0 8px}
+    .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);font-weight:700}
+    .lead{font:19px/1.45 Georgia,serif;color:#333;max-width:760px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin:14px 0}
+    .status{padding:12px 14px;border-radius:10px;background:var(--soft);margin:16px 0}
+    input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font:16px Arial}
+    button{border:0;background:var(--blue);color:#fff;padding:11px 18px;border-radius:999px;font-weight:700;cursor:pointer}
+    button.secondary{background:#fff;color:var(--ink);border:1px solid var(--line)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .hidden{display:none}
+    .person{display:flex;justify-content:space-between;gap:14px;align-items:center}
+    .email{font-weight:700}
+    .meta{color:var(--muted);font-size:13px}
+    .assessment{border-top:1px solid var(--line);padding-top:18px;margin-top:18px}
+    .answer{padding:12px 0;border-bottom:1px solid #eee}
+    .code{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.05em}
+    .title{font-weight:700;margin-top:3px}
+    .text{margin-top:5px;white-space:pre-wrap;line-height:1.45}
+    .stage{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;color:white;margin-left:6px}
+    .Norte{background:var(--north)} .Autoría{background:var(--author)}
+    .Tierra{background:var(--earth)} .Tribu{background:var(--tribe)}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Ser Protagonista</div>
+  <h1>Panel privado</h1>
+  <p class="lead">Historial de evaluaciones por persona.</p>
+
+  <div id="systemStatus" class="status">Iniciando sistema…</div>
+
+  <section id="loginBox" class="card hidden">
+    <h3>Ingreso de administrador</h3>
+    <p>Ingresá con tu email para acceder al historial.</p>
+    <input id="email" type="email" placeholder="tu@email.com">
+    <div class="actions"><button id="loginBtn">Recibir enlace de acceso</button></div>
+    <div id="loginStatus"></div>
+  </section>
+
+  <section id="panel" class="hidden">
+    <div class="actions">
+      <button id="reloadBtn">Actualizar datos</button>
+      <button id="logoutBtn" class="secondary">Cerrar sesión</button>
+    </div>
+    <div id="panelStatus"></div>
+    <div id="people"></div>
+  </section>
+</main>
+
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+  const SUPABASE_URL = "https://wugmztghbdadhthlogvh.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_fOQYHltmeh5l1f0aka9pFA_X3Qc1aRc";
+  const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+  const $ = id => document.getElementById(id);
+
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;")
+      .replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  $("systemStatus").textContent = "Sistema conectado.";
+
+  async function checkAdmin() {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if(userError || !userData.user) return false;
+
+    const { data, error } = await supabase
+      .from("admins")
+      .select("user_id")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+
+    return !error && !!data;
+  }
+
+  async function loadPanel(){
+    $("panelStatus").innerHTML='<div class="status">Cargando datos…</div>';
+
+    const isAdmin = await checkAdmin();
+    if(!isAdmin){
+      $("panelStatus").innerHTML='<div class="status">Esta cuenta no tiene acceso de administrador.</div>';
+      return;
+    }
+
+    const [
+      {data:profiles,error:pErr},
+      {data:assessments,error:aErr},
+      {data:answers,error:ansErr}
+    ] = await Promise.all([
+      supabase.from("profiles").select("user_id,email").order("email"),
+      supabase.from("assessments").select("id,user_id,completed_at").order("completed_at",{ascending:false}),
+      supabase.from("answers").select("assessment_id,user_id,question_code,stage,question_title,answer_text")
+    ]);
+
+    const error = pErr || aErr || ansErr;
+    if(error){
+      $("panelStatus").innerHTML=`<div class="status">${escapeHtml(error.message)}</div>`;
+      return;
+    }
+
+    const peopleMap = new Map();
+    for(const p of (profiles || [])){
+      peopleMap.set(p.user_id,{user_id:p.user_id,email:p.email,assessments:[]});
+    }
+
+    const answersByAssessment = new Map();
+    for(const ans of (answers || [])){
+      if(!answersByAssessment.has(ans.assessment_id)) answersByAssessment.set(ans.assessment_id,[]);
+      answersByAssessment.get(ans.assessment_id).push(ans);
+    }
+
+    for(const a of (assessments || [])){
+      if(!peopleMap.has(a.user_id)){
+        peopleMap.set(a.user_id,{user_id:a.user_id,email:a.user_id,assessments:[]});
+      }
+      peopleMap.get(a.user_id).assessments.push({
+        ...a,
+        answers: answersByAssessment.get(a.id) || []
+      });
+    }
+
+    const people=[...peopleMap.values()].filter(p=>p.assessments.length>0);
+
+    $("panelStatus").innerHTML=`<div class="status">${people.length} persona(s) con evaluaciones.</div>`;
+
+    $("people").innerHTML = people.map((p,idx)=>`
+      <div class="card">
+        <div class="person">
+          <div>
+            <div class="email">${escapeHtml(p.email||p.user_id)}</div>
+            <div class="meta">${p.assessments.length} evaluación(es)</div>
+          </div>
+          <button class="secondary" onclick="togglePerson(${idx})">Ver historial</button>
+        </div>
+        <div id="person-${idx}" class="hidden">
+          ${p.assessments.map(a=>`
+            <div class="assessment">
+              <h3>${new Date(a.completed_at).toLocaleString("es-AR")}</h3>
+              ${a.answers
+                .sort((x,y)=>x.question_code.localeCompare(y.question_code))
+                .map(ans=>`
+                  <div class="answer">
+                    <div class="code">${escapeHtml(ans.question_code)}
+                      <span class="stage ${escapeHtml(ans.stage)}">${escapeHtml(ans.stage)}</span>
+                    </div>
+                    <div class="title">${escapeHtml(ans.question_title)}</div>
+                    <div class="text">${escapeHtml(ans.answer_text || "—")}</div>
+                  </div>
+                `).join("")}
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  window.togglePerson = function(i){
+    $("person-"+i).classList.toggle("hidden");
+  };
+
+  $("loginBtn").onclick = async () => {
+    const email = $("email").value.trim();
+    if(!email){
+      $("loginStatus").innerHTML='<div class="status">Ingresá tu email.</div>';
+      return;
+    }
+
+    $("loginStatus").innerHTML='<div class="status">Enviando enlace…</div>';
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options:{ emailRedirectTo: window.location.href.split("#")[0].split("?")[0] }
+    });
+
+    $("loginStatus").innerHTML=`<div class="status">${
+      error ? escapeHtml(error.message) : "Te enviamos un enlace de acceso por email."
+    }</div>`;
+  };
+
+  $("logoutBtn").onclick = async () => {
+    await supabase.auth.signOut();
+    location.reload();
+  };
+
+  $("reloadBtn").onclick = loadPanel;
+
+  const { data } = await supabase.auth.getUser();
+
+  if(data.user){
+    $("loginBox").classList.add("hidden");
+    $("panel").classList.remove("hidden");
+    await loadPanel();
+  } else {
+    $("loginBox").classList.remove("hidden");
+  }
+</script>
+</body>
+</html>
